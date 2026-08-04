@@ -287,7 +287,6 @@ export default function Leitura() {
                       <input
                         type="file"
                         accept="image/*"
-                        capture="environment"
                         disabled={!aberta}
                         style={{ display: 'none' }}
                         onChange={(e) => escolherFoto(med.id, e.target.files?.[0])}

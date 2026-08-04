@@ -251,3 +251,33 @@ describe('alertas por medidor', () => {
     expect(s[1].consumo).toBeCloseTo(8, 3);
   });
 });
+
+describe('primeiro fechamento com leituras iniciais', () => {
+  it('o consumo é a diferença para a leitura inicial, não o valor do mostrador', () => {
+    // apto que já tinha 118,450 m³ acumulados e agora marca 127,300
+    const us: UnidadeEntrada[] = [
+      {
+        id: '101',
+        medidores: [
+          { medidorId: '101-1', rotulo: '101-1', anterior: 118.45, atual: 127.3 },
+          { medidorId: '101-2', rotulo: '101-2', anterior: 204.0, atual: 206.5 },
+        ],
+      },
+    ];
+    const f = fecharCompetencia(us, { valorTotal: 0, consumoM3: 0, regra: 'igual' }, TARIFA_2025);
+    expect(f.somaConsumo).toBeCloseTo(11.35, 3);
+  });
+
+  it('sem leitura inicial informada, o consumo vira o mostrador inteiro', () => {
+    // este é o cenário que a aba de leituras iniciais existe para evitar
+    const us: UnidadeEntrada[] = [
+      {
+        id: '101',
+        medidores: [{ medidorId: '101-1', rotulo: '101-1', anterior: 0, atual: 127.3 }],
+      },
+    ];
+    const f = fecharCompetencia(us, { valorTotal: 0, consumoM3: 0, regra: 'igual' }, TARIFA_2025);
+    expect(f.somaConsumo).toBeCloseTo(127.3, 3);
+    expect(f.itens[0].tarifado).toBeGreaterThan(2000);
+  });
+});

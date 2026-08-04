@@ -10,6 +10,7 @@ import Carregando from '@/components/Carregando';
 import SeletorComp from '@/components/SeletorComp';
 import ConferenciaApto from '@/components/ConferenciaApto';
 import AbaTarifa from '@/components/AbaTarifa';
+import AbaInicial from '@/components/AbaInicial';
 import {
   estaAberta, garantirCompetencia, listaCompetencias, salvarConta, salvarPrazo,
   type ContaDoc, type Prazo,
@@ -17,7 +18,7 @@ import {
 import { alertasDoMedidor, fecharCompetencia, montarSerie, type UnidadeEntrada } from '@/lib/calculo';
 import { brl, compRotulo, dataBR, diasAtePrazo, m3, num, prazoDe } from '@/lib/formato';
 
-type Aba = 'coleta' | 'alertas' | 'conta' | 'tarifa' | 'fechamento' | 'cadastro';
+type Aba = 'coleta' | 'alertas' | 'conta' | 'tarifa' | 'fechamento' | 'inicial' | 'cadastro';
 
 export default function Sindico() {
   const { carregando, erro, sessao, base, comp, leituras, historico, recarregar } = useApp();
@@ -224,12 +225,15 @@ export default function Sindico() {
     setTimeout(() => URL.revokeObjectURL(url), 4000);
   }
 
+  const houveFechamento = base.competencias.some((c) => c.status === 'fechada');
   const abas: Array<[Aba, string]> = [
     ['coleta', 'Coleta'],
     ['alertas', `Alertas${alertas.length ? ` (${alertas.length})` : ''}`],
     ['conta', 'Conta'],
     ['tarifa', 'Tarifa'],
     ['fechamento', 'Fechamento'],
+    // some depois do primeiro fechamento: a leitura anterior passa a vir dele
+    ...(houveFechamento ? [] : ([['inicial', 'Leituras iniciais']] as Array<[Aba, string]>)),
     ['cadastro', 'Cadastro'],
   ];
 
@@ -589,6 +593,11 @@ export default function Sindico() {
               </>
             )}
           </>
+        )}
+
+        {/* ---------- LEITURAS INICIAIS ---------- */}
+        {aba === 'inicial' && (
+          <AbaInicial onMensagem={(t, texto) => setMsg({ t, texto })} />
         )}
 
         {/* ---------- CADASTRO ---------- */}

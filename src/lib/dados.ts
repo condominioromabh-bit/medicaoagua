@@ -153,6 +153,20 @@ export async function salvarConta(comp: string, conta: ContaDoc) {
   await setDoc(doc(condo(), 'competencias', comp), { conta }, { merge: true });
 }
 
+/**
+ * Grava a leitura de partida de cada medidor.
+ *
+ * Serve só para o primeiro fechamento: depois dele, a leitura anterior vem
+ * sempre da competência fechada, e este valor deixa de ser consultado.
+ */
+export async function salvarLeiturasIniciais(valores: Record<string, number>) {
+  const batch = writeBatch(getDb());
+  for (const [medidorId, leituraInicial] of Object.entries(valores)) {
+    batch.set(doc(condo(), 'medidores', medidorId), { leituraInicial }, { merge: true });
+  }
+  await batch.commit();
+}
+
 export async function salvarTarifa(tarifa: Tarifa) {
   await updateDoc(condo(), { tarifa });
 }
