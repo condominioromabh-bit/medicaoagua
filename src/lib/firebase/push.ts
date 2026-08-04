@@ -2,7 +2,7 @@
 
 import { getMessaging, getToken, isSupported, onMessage } from 'firebase/messaging';
 import { doc, setDoc } from 'firebase/firestore';
-import { app, db } from './client';
+import { getDb, getFirebaseApp } from './client';
 
 export type EstadoPush =
   | 'ativo'
@@ -49,7 +49,7 @@ export async function ativarPush(
   if (permissao !== 'granted') return { ok: false, estado: 'negado' };
 
   const registro = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-  const token = await getToken(getMessaging(app), {
+  const token = await getToken(getMessaging(getFirebaseApp()), {
     vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
     serviceWorkerRegistration: registro,
   });
@@ -57,7 +57,7 @@ export async function ativarPush(
 
   // id do documento derivado do token: reativar no mesmo aparelho não duplica
   const id = token.slice(-40).replace(/[^a-zA-Z0-9]/g, '');
-  await setDoc(doc(db, 'condominios', condoId, 'tokens', id), {
+  await setDoc(doc(getDb(), 'condominios', condoId, 'tokens', id), {
     token,
     unidadeId,
     userAgent: navigator.userAgent.slice(0, 200),
@@ -70,7 +70,7 @@ export async function ativarPush(
 /** Notificação com o app aberto: o SW não dispara, então mostramos na tela. */
 export async function ouvirEmPrimeiroPlano(cb: (t: string, c: string) => void) {
   if (!(await isSupported())) return;
-  onMessage(getMessaging(app), (payload) => {
+  onMessage(getMessaging(getFirebaseApp()), (payload) => {
     const n = payload.notification;
     if (n?.title) cb(n.title, n.body ?? '');
   });

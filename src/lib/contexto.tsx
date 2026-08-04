@@ -4,7 +4,7 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useState,
 } from 'react';
 import { onAuthStateChanged, signInWithCustomToken, signOut, type User } from 'firebase/auth';
-import { auth } from './firebase/client';
+import { getAuthClient } from './firebase/client';
 import {
   carregarBase, carregarHistorico, carregarLeituras, garantirCompetencia,
   listaCompetencias, type Base, type Leitura,
@@ -55,7 +55,9 @@ export function Provedor({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    return onAuthStateChanged(auth, async (u: User | null) => {
+    let cancelar: (() => void) | undefined;
+    try {
+      cancelar = onAuthStateChanged(getAuthClient(), async (u: User | null) => {
       if (!u) {
         setSessao(null);
         setBase(null);
@@ -80,7 +82,13 @@ export function Provedor({ children }: { children: React.ReactNode }) {
       } finally {
         setCarregando(false);
       }
-    });
+      });
+    } catch (e) {
+      // configuração ausente: mostra o motivo em vez de tela branca
+      setErro(e instanceof Error ? e.message : 'Falha ao iniciar o aplicativo.');
+      setCarregando(false);
+    }
+    return () => cancelar?.();
   }, [carregarTudo]);
 
   const trocarComp = useCallback(async (c: string) => {
@@ -104,11 +112,11 @@ export function Provedor({ children }: { children: React.ReactNode }) {
   }, [carregarTudo, comp]);
 
   const entrar = useCallback(async (token: string) => {
-    await signInWithCustomToken(auth, token);
+    await signInWithCustomToken(getAuthClient(), token);
   }, []);
 
   const sair = useCallback(async () => {
-    await signOut(auth);
+    await signOut(getAuthClient());
     setSessao(null);
     setBase(null);
   }, []);

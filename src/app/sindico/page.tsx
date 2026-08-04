@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { auth } from '@/lib/firebase/client';
+import { getAuthClient } from '@/lib/firebase/client';
 import { useApp } from '@/lib/contexto';
 import Topo from '@/components/Topo';
 import Aviso from '@/components/Aviso';
@@ -150,7 +150,7 @@ export default function Sindico() {
     }
     setOcupado(true);
     try {
-      const token = await auth.currentUser?.getIdToken();
+      const token = await getAuthClient().currentUser?.getIdToken();
       const r = await fetch('/api/fechar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

@@ -10,7 +10,7 @@ type Papel = 'escolher' | 'morador' | 'sindico';
 const APTOS = ['101', '102', '201', '202', '301', '302'];
 
 export default function Entrar() {
-  const { sessao, entrar, carregando } = useApp();
+  const { sessao, entrar, carregando, erro: erroApp } = useApp();
   const router = useRouter();
   const [papel, setPapel] = useState<Papel>('escolher');
   const [apto, setApto] = useState<string | null>(null);
@@ -60,7 +60,7 @@ export default function Entrar() {
       </div>
 
       <div className="wrap">
-        {erro && <Aviso tipo="erro">{erro}</Aviso>}
+        {(erro || erroApp) && <Aviso tipo="erro">{erro ?? erroApp}</Aviso>}
 
         {papel === 'escolher' && (
           <>
