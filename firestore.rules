@@ -1,0 +1,98 @@
+rules_version = '2';
+
+// Modelo de acesso:
+//  - morador  -> claim { condoId, unidadeId }
+//  - síndico  -> claim { condoId, role: 'sindico' }
+// As claims são emitidas pelo backend (src/app/api/acesso) via custom token,
+// depois que o código de acesso do apartamento é validado. O cliente nunca
+// escolhe quem ele é.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function auth_() { return request.auth.token; }
+    function noCondo(condoId) {
+      return request.auth != null && auth_().condoId == condoId;
+    }
+    function ehSindico(condoId) {
+      return noCondo(condoId) && auth_().role == 'sindico';
+    }
+    function ehMorador(condoId, unidadeId) {
+      return noCondo(condoId) && auth_().unidadeId == unidadeId;
+    }
+
+    match /condominios/{condoId} {
+      // tarifa, prazo e nome: todos leem, só o síndico altera
+      allow read: if noCondo(condoId);
+      allow write: if ehSindico(condoId);
+
+      match /unidades/{unidadeId} {
+        allow read: if noCondo(condoId);
+        allow write: if ehSindico(condoId);
+      }
+
+      match /medidores/{medidorId} {
+        allow read: if noCondo(condoId);
+        allow write: if ehSindico(condoId);
+      }
+
+      match /competencias/{comp} {
+        allow read: if noCondo(condoId);
+        allow write: if ehSindico(condoId);
+
+        // Uma leitura por medidor. Documento separado por medidor é o que
+        // impede dois moradores de sobrescreverem um ao outro ao enviar
+        // ao mesmo tempo.
+        match /leituras/{medidorId} {
+          allow read: if noCondo(condoId);
+
+          // morador: só os medidores do próprio apartamento, e só enquanto
+          // a competência estiver aberta
+          allow create, update: if ehMorador(condoId, request.resource.data.unidadeId)
+            && request.resource.data.unidadeId ==
+               get(/databases/$(database)/documents/condominios/$(condoId)/medidores/$(medidorId)).data.unidadeId
+            && get(/databases/$(database)/documents/condominios/$(condoId)/competencias/$(comp)).data.status == 'aberta'
+            && request.resource.data.valor is number
+            && request.resource.data.valor >= 0;
+
+          // síndico corrige qualquer leitura, também só com o mês aberto
+          allow write: if ehSindico(condoId)
+            && get(/databases/$(database)/documents/condominios/$(condoId)/competencias/$(comp)).data.status == 'aberta';
+
+          allow delete: if false; // leitura não some; corrige-se por cima
+        }
+
+        // Fotos dos hidrômetros em base64, numa subcoleção separada.
+        // No plano Spark não há Cloud Storage, então a imagem mora aqui — e
+        // fica fora de `leituras` para que a listagem do mês não arraste
+        // megabytes de imagem a cada carregamento de tela.
+        match /fotos/{medidorId} {
+          allow read: if noCondo(condoId);
+
+          allow create, update: if noCondo(condoId)
+            && (ehSindico(condoId) || auth_().unidadeId == request.resource.data.unidadeId)
+            && get(/databases/$(database)/documents/condominios/$(condoId)/competencias/$(comp)).data.status == 'aberta'
+            && request.resource.data.imagem is string
+            && request.resource.data.imagem.size() < 700000
+            && request.resource.data.imagem.matches('data:image/.*');
+
+          allow delete: if ehSindico(condoId);
+        }
+
+        // resultado congelado do fechamento — escrito só pelo backend admin
+        match /itens/{unidadeId} {
+          allow read: if noCondo(condoId);
+          allow write: if false;
+        }
+      }
+
+      // tokens de push, um por dispositivo
+      match /tokens/{tokenId} {
+        allow read: if ehSindico(condoId);
+        allow create, update: if noCondo(condoId)
+          && request.resource.data.unidadeId == auth_().unidadeId;
+        allow delete: if noCondo(condoId);
+      }
+    }
+  }
+}

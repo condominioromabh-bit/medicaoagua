@@ -1,0 +1,8 @@
+node_modules/
+.next/
+lib/
+.env
+.env.local
+*.log
+.DS_Store
+.firebase/
