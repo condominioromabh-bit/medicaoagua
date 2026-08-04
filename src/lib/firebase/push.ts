@@ -2,7 +2,7 @@
 
 import { getMessaging, getToken, isSupported, onMessage } from 'firebase/messaging';
 import { doc, setDoc } from 'firebase/firestore';
-import { getDb, getFirebaseApp } from './client';
+import { getDb, getFirebaseApp, vapidKey } from './client';
 
 export type EstadoPush =
   | 'ativo'
@@ -50,7 +50,7 @@ export async function ativarPush(
 
   const registro = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
   const token = await getToken(getMessaging(getFirebaseApp()), {
-    vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+    vapidKey: vapidKey(),
     serviceWorkerRegistration: registro,
   });
   if (!token) return { ok: false, estado: 'indisponivel' };

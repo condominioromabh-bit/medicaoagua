@@ -61,6 +61,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ token });
   } catch (e) {
     console.error('falha no acesso', e);
-    return NextResponse.json({ erro: 'Erro no servidor. Tente de novo em instantes.' }, { status: 500 });
+    const msg = e instanceof Error ? e.message : '';
+    // erros de configuração devem aparecer para quem instala, não virar
+    // "erro no servidor" genérico que não diz o que corrigir
+    if (msg.includes('FIREBASE_SERVICE_ACCOUNT')) {
+      return NextResponse.json({ erro: msg }, { status: 500 });
+    }
+    if (msg.includes('NOT_FOUND') || msg.includes('5 NOT_FOUND')) {
+      return NextResponse.json(
+        { erro: 'O condomínio ainda não foi criado. Abra /configurar e faça a instalação inicial primeiro.' },
+        { status: 503 },
+      );
+    }
+    return NextResponse.json({ erro: 'Erro no servidor: ' + (msg || 'causa desconhecida') }, { status: 500 });
   }
 }

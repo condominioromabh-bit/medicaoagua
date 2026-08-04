@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '@/lib/contexto';
 import { ativarPush, estadoPush, type EstadoPush } from '@/lib/firebase/push';
-import { CONDO_ID } from '@/lib/firebase/client';
+import { condoId } from '@/lib/firebase/client';
 
 /**
  * Ativação do lembrete por notificação.
@@ -62,7 +62,7 @@ export default function AtivarPush() {
   async function ativar() {
     setOcupado(true);
     try {
-      const r = await ativarPush(CONDO_ID, sessao!.unidadeId!);
+      const r = await ativarPush(condoId(), sessao!.unidadeId!);
       setEstado(r.estado);
     } finally {
       setOcupado(false);

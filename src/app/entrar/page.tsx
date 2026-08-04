@@ -34,15 +34,25 @@ export default function Entrar() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ papel, unidadeId: apto, codigo }),
       });
-      const dados = await r.json();
-      if (!r.ok) {
-        setErro(dados.erro ?? 'Não foi possível entrar.');
+      let dados: { token?: string; erro?: string };
+      try {
+        dados = await r.json();
+      } catch {
+        setErro(`O servidor respondeu de forma inesperada (código ${r.status}). Veja os logs em Vercel > Functions.`);
         return;
       }
-      await entrar(dados.token);
+      if (!r.ok) {
+        setErro(dados.erro ?? `Não foi possível entrar (código ${r.status}).`);
+        return;
+      }
+      await entrar(dados.token!);
       router.replace(papel === 'sindico' ? '/sindico' : '/leitura');
-    } catch {
-      setErro('Sem conexão com o servidor. Verifique a internet e tente de novo.');
+    } catch (e) {
+      setErro(
+        e instanceof Error && e.message.includes('fetch')
+          ? 'Sem conexão com o servidor. Verifique a internet e tente de novo.'
+          : `Falha ao entrar: ${e instanceof Error ? e.message : 'erro desconhecido'}`,
+      );
     } finally {
       setEnviando(false);
     }

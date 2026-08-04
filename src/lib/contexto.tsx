@@ -4,7 +4,7 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useState,
 } from 'react';
 import { onAuthStateChanged, signInWithCustomToken, signOut, type User } from 'firebase/auth';
-import { getAuthClient } from './firebase/client';
+import { getAuthClient, iniciarFirebase } from './firebase/client';
 import {
   carregarBase, carregarHistorico, carregarLeituras, garantirCompetencia,
   listaCompetencias, type Base, type Leitura,
@@ -56,7 +56,18 @@ export function Provedor({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelar: (() => void) | undefined;
-    try {
+    let vivo = true;
+
+    (async () => {
+      try {
+        await iniciarFirebase();
+      } catch (e) {
+        if (!vivo) return;
+        setErro(e instanceof Error ? e.message : 'Falha ao iniciar o aplicativo.');
+        setCarregando(false);
+        return;
+      }
+      if (!vivo) return;
       cancelar = onAuthStateChanged(getAuthClient(), async (u: User | null) => {
       if (!u) {
         setSessao(null);
@@ -83,12 +94,12 @@ export function Provedor({ children }: { children: React.ReactNode }) {
         setCarregando(false);
       }
       });
-    } catch (e) {
-      // configuração ausente: mostra o motivo em vez de tela branca
-      setErro(e instanceof Error ? e.message : 'Falha ao iniciar o aplicativo.');
-      setCarregando(false);
-    }
-    return () => cancelar?.();
+    })();
+
+    return () => {
+      vivo = false;
+      cancelar?.();
+    };
   }, [carregarTudo]);
 
   const trocarComp = useCallback(async (c: string) => {

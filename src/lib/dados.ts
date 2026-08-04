@@ -11,7 +11,7 @@ import {
   updateDoc,
   writeBatch,
 } from 'firebase/firestore';
-import { CONDO_ID, getDb } from './firebase/client';
+import { condoId, getDb } from './firebase/client';
 import type { Tarifa, RegraDiferenca } from './calculo';
 import { compAtual, compSeguinte } from './formato';
 
@@ -43,7 +43,7 @@ export const CONTA_VAZIA: ContaDoc = {
   valorTotal: 0, consumoM3: 0, vencimento: '', dataLeitura: '', numero: '', regra: 'igual',
 };
 
-const condo = () => doc(getDb(), 'condominios', CONDO_ID);
+const condo = () => doc(getDb(), 'condominios', condoId());
 
 export interface Base {
   cfg: Cfg;
