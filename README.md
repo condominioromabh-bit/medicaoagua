@@ -46,6 +46,12 @@ condominios/{condoId}
   tokens/{tokenId}            unidadeId, token, userAgent
 ```
 
+**Fotos vivem 6 meses.** O cron diário apaga as imagens de competências mais
+antigas que isso e marca `temFoto: false` na leitura correspondente. A foto serve
+para conferir e fechar o mês; passado o prazo, só ocuparia espaço. Os números —
+leituras, consumos e valores cobrados — ficam guardados para sempre, que é o que
+a prestação de contas exige.
+
 **Um documento por leitura de medidor.** É o que garante que dois moradores
 enviando ao mesmo tempo não sobrescrevam um ao outro — o erro clássico de quem
 guarda o mês inteiro num documento só.

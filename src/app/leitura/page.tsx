@@ -80,11 +80,13 @@ export default function Leitura() {
     [campos, anteriorDe],
   );
 
-  const { total, completo, negativos } = useMemo(() => {
+  const { total, completo, negativos, fotosFaltando } = useMemo(() => {
     let soma = 0;
     let faltando = 0;
     let neg = 0;
+    let semFoto = 0;
     for (const med of meusMedidores) {
+      if (!fotos[med.id] && !leituras[med.id]?.temFoto) semFoto++;
       const c = consumoDe(med);
       if (c === null) { faltando++; continue; }
       if (c < 0) neg++;
@@ -94,8 +96,9 @@ export default function Leitura() {
       total: Math.round(soma * 1000) / 1000,
       completo: faltando === 0 && meusMedidores.length > 0,
       negativos: neg,
+      fotosFaltando: semFoto,
     };
-  }, [meusMedidores, consumoDe]);
+  }, [meusMedidores, consumoDe, fotos, leituras]);
 
   /** Parcela de área comum do último fechamento, como referência da estimativa. */
   const referencia = useMemo(() => {
@@ -136,6 +139,8 @@ export default function Leitura() {
     const problemas: string[] = [];
     const valores: Record<string, number> = {};
 
+    const semFoto: string[] = [];
+
     for (const med of meusMedidores) {
       const c = campos[med.id];
       if (!c || c.m3 === '' || c.lt === '') {
@@ -148,6 +153,15 @@ export default function Leitura() {
         problemas.push(`O medidor ${med.rotulo} está menor que a leitura anterior (${m3(ant)}).`);
       }
       valores[med.id] = valor;
+
+      // a foto é o que comprova a leitura na hora do fechamento
+      if (!fotos[med.id] && !leituras[med.id]?.temFoto) semFoto.push(med.rotulo);
+    }
+
+    if (semFoto.length) {
+      problemas.push(
+        `Falta a foto de ${semFoto.length} medidor(es): ${semFoto.join(', ')}. A foto é o que comprova a leitura se alguém questionar a cobrança.`,
+      );
     }
 
     if (problemas.length) {
@@ -233,7 +247,8 @@ export default function Leitura() {
           <h2 className="disp">Copie os números de cada medidor</h2>
           <p className="sub">
             O campo preto são os m³ inteiros; o vermelho são os litros. Se o seu mostrador tiver
-            menos casas vermelhas, complete com zeros à direita.
+            menos casas vermelhas, complete com zeros à direita. <strong>Cada medidor precisa de uma
+            foto do mostrador</strong> — é o que comprova a leitura no fechamento.
           </p>
           <div className="legenda-visor">
             <span>preto · m³</span>
@@ -310,6 +325,13 @@ export default function Leitura() {
               </small>
             </div>
             <div className="kpi">
+              <span className="eyebrow">Fotos</span>
+              <strong style={fotosFaltando ? { color: 'var(--rubro)' } : undefined}>
+                {meusMedidores.length - fotosFaltando}/{meusMedidores.length}
+              </strong>
+              <small>{fotosFaltando ? 'obrigatórias para enviar' : 'todas anexadas'}</small>
+            </div>
+            <div className="kpi">
               <span className="eyebrow">Tarifa do seu consumo</span>
               <strong>{estimativa ? brl(estimativa.tarifa) : '—'}</strong>
               <small>pela tabela da Copasa</small>
@@ -335,6 +357,14 @@ export default function Leitura() {
             e essa parte muda todo mês.
           </Aviso>
 
+          {fotosFaltando > 0 && aberta && (
+            <Aviso tipo="erro">
+              <strong>Faltam {fotosFaltando} foto(s).</strong> Cada hidrômetro precisa de uma foto do
+              mostrador — é o que comprova a sua leitura se alguém questionar a cobrança no
+              fechamento. Toque em <strong>+ foto</strong> na placa de cada medidor.
+            </Aviso>
+          )}
+
           {negativos > 0 && (
             <Aviso tipo="erro">
               {negativos} medidor(es) com leitura menor que a anterior. Confira se você copiou só os
@@ -342,8 +372,20 @@ export default function Leitura() {
             </Aviso>
           )}
 
-          <button className="btn" onClick={enviar} disabled={!aberta || enviando}>
-            {!aberta ? 'Mês fechado' : enviando ? 'Enviando…' : 'Enviar leitura'}
+          <button
+            className="btn"
+            onClick={enviar}
+            disabled={!aberta || enviando || fotosFaltando > 0 || !completo}
+          >
+            {!aberta
+              ? 'Mês fechado'
+              : enviando
+                ? 'Enviando…'
+                : !completo
+                  ? 'Preencha todos os medidores'
+                  : fotosFaltando > 0
+                    ? `Faltam ${fotosFaltando} foto(s)`
+                    : 'Enviar leitura'}
           </button>
         </div>
 

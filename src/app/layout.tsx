@@ -7,6 +7,14 @@ export const metadata: Metadata = {
   description: 'Lançamento mensal dos hidrômetros e rateio da conta de água',
   manifest: '/manifest.json',
   appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'ROMA Água' },
+  icons: {
+    icon: [
+      { url: '/icone-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icone-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    // o iOS não lê o manifest: precisa da tag apple-touch-icon
+    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+  },
 };
 
 export const viewport: Viewport = {

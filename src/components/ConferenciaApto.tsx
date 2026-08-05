@@ -66,7 +66,7 @@ export default function ConferenciaApto({
     try {
       const img = await carregarFoto(comp, medId);
       if (img) setFoto(img);
-      else setErro('A foto deste medidor não foi encontrada.');
+      else setErro('Foto não encontrada. Fotos com mais de 6 meses são apagadas automaticamente; as leituras e os valores continuam guardados.');
     } catch {
       setErro('Não foi possível carregar a foto agora.');
     }

@@ -6,6 +6,9 @@ const CONDO_ID = process.env.NEXT_PUBLIC_CONDO_ID || 'roma';
 
 export const maxDuration = 60;
 
+/** Depois disso a foto já cumpriu o papel: o mês foi fechado e conferido. */
+const MESES_RETENCAO_FOTOS = 6;
+
 /**
  * Lembrete de prazo por notificação.
  *
@@ -62,6 +65,44 @@ function mensagem(dias: number, competencia: string, faltam: number) {
   };
 }
 
+/**
+ * Apaga as fotos de competências antigas.
+ *
+ * A foto existe para comprovar a leitura durante a conferência e o fechamento.
+ * Passado esse prazo, ela só ocupa espaço — os números ficam guardados para
+ * sempre em `leituras` e `itens`, que são o que importa para a prestação de
+ * contas. O campo `temFoto` da leitura é limpo junto, para o app não oferecer
+ * um botão "ver" que abriria em erro.
+ */
+async function limparFotosAntigas(condo: FirebaseFirestore.DocumentReference) {
+  const corte = new Date();
+  corte.setMonth(corte.getMonth() - MESES_RETENCAO_FOTOS);
+  const limite = `${corte.getFullYear()}-${String(corte.getMonth() + 1).padStart(2, '0')}`;
+
+  const comps = await condo.collection('competencias').get();
+  const antigas = comps.docs.filter((d) => d.id < limite);
+  let apagadas = 0;
+
+  for (const comp of antigas) {
+    const fotos = await comp.ref.collection('fotos').get();
+    if (fotos.empty) continue;
+
+    // lotes de 400: o limite do Firestore é 500 operações por batch
+    for (let i = 0; i < fotos.docs.length; i += 400) {
+      const fatia = fotos.docs.slice(i, i + 400);
+      const lote = condo.firestore.batch();
+      for (const f of fatia) {
+        lote.delete(f.ref);
+        lote.set(comp.ref.collection('leituras').doc(f.id), { temFoto: false }, { merge: true });
+      }
+      await lote.commit();
+      apagadas += fatia.length;
+    }
+    console.info('fotos removidas por retencao', comp.id, fotos.size);
+  }
+  return { apagadas, limite, competencias: antigas.length };
+}
+
 export async function GET(req: Request) {
   const segredo = process.env.CRON_SECRET;
   if (segredo && req.headers.get('authorization') !== `Bearer ${segredo}`) {
@@ -77,7 +118,18 @@ export async function GET(req: Request) {
 
   const prazo = cfgSnap.data()?.prazo ?? { ativo: true, dia: 5, ref: 'seguinte' };
   if (!prazo.ativo) {
-    return NextResponse.json({ ok: true, motivo: 'prazo desativado no cadastro' });
+    // mesmo sem lembrete, a retenção de fotos precisa continuar rodando
+    const r = await limparFotosAntigas(condo).catch(() => null);
+    return NextResponse.json({ ok: true, motivo: 'prazo desativado no cadastro', retencao: r });
+  }
+
+  // a limpeza roda antes dos lembretes, para não ficar de fora se algo falhar depois
+  let retencao;
+  try {
+    retencao = await limparFotosAntigas(condo);
+  } catch (e) {
+    console.error('falha na limpeza de fotos', e);
+    retencao = { erro: 'falha ao limpar fotos antigas' };
   }
 
   const abertas = await condo.collection('competencias').where('status', '==', 'aberta').get();
@@ -154,5 +206,5 @@ export async function GET(req: Request) {
     });
   }
 
-  return NextResponse.json({ ok: true, relatorio });
+  return NextResponse.json({ ok: true, retencao, relatorio });
 }
