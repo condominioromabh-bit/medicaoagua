@@ -10,7 +10,7 @@ import Carregando from '@/components/Carregando';
 import SeletorComp from '@/components/SeletorComp';
 import AtivarPush from '@/components/AtivarPush';
 import {
-  comprimirFoto, estaAberta, listaCompetencias, salvarLeituras,
+  carregarFoto, comprimirFoto, estaAberta, listaCompetencias, salvarLeituras, trocarFoto,
   type Medidor,
 } from '@/lib/dados';
 import { faturar } from '@/lib/calculo';
@@ -25,6 +25,9 @@ export default function Leitura() {
   const [fotos, setFotos] = useState<Record<string, string>>({});
   const [msg, setMsg] = useState<{ t: 'ok' | 'erro'; texto: string } | null>(null);
   const [enviando, setEnviando] = useState(false);
+  // medidor cuja foto está aberta para conferência
+  const [vendo, setVendo] = useState<{ id: string; rotulo: string; url: string } | null>(null);
+  const [trocando, setTrocando] = useState<string | null>(null);
 
   useEffect(() => {
     if (!carregando && !sessao) router.replace('/entrar');
@@ -124,13 +127,56 @@ export default function Leitura() {
   }
 
   async function escolherFoto(medId: string, file: File | undefined) {
-    if (!file) return;
+    if (!file || !unidadeId) return;
+    let url: string;
     try {
-      const url = await comprimirFoto(file);
-      setFotos((f) => ({ ...f, [medId]: url }));
-      setMsg(null);
+      url = await comprimirFoto(file);
     } catch {
       setMsg({ t: 'erro', texto: 'Não foi possível ler essa imagem. Tente outra foto.' });
+      return;
+    }
+
+    // leitura ainda não enviada: guarda na memória e sobe junto no envio
+    if (!leituras[medId]) {
+      setFotos((f) => ({ ...f, [medId]: url }));
+      setMsg(null);
+      return;
+    }
+
+    // leitura já enviada: grava a troca na hora, sem reenviar o apartamento
+    setTrocando(medId);
+    try {
+      await trocarFoto(comp, medId, unidadeId, url);
+      setFotos((f) => ({ ...f, [medId]: url }));
+      setVendo(null);
+      await recarregar();
+      const rot = meusMedidores.find((m) => m.id === medId)?.rotulo ?? medId;
+      setMsg({ t: 'ok', texto: `Foto do medidor ${rot} substituída.` });
+    } catch (e) {
+      setMsg({
+        t: 'erro',
+        texto:
+          e instanceof Error && e.message.includes('grande')
+            ? e.message
+            : 'Não foi possível trocar a foto. Se o mês já foi fechado, ela não pode mais ser alterada.',
+      });
+    } finally {
+      setTrocando(null);
+    }
+  }
+
+  async function verFoto(medId: string, rotulo: string) {
+    const local = fotos[medId];
+    if (local) {
+      setVendo({ id: medId, rotulo, url: local });
+      return;
+    }
+    try {
+      const img = await carregarFoto(comp, medId);
+      if (img) setVendo({ id: medId, rotulo, url: img });
+      else setMsg({ t: 'erro', texto: 'Foto não encontrada. Anexe uma nova.' });
+    } catch {
+      setMsg({ t: 'erro', texto: 'Não foi possível carregar a foto agora.' });
     }
   }
 
@@ -235,8 +281,9 @@ export default function Leitura() {
 
         {jaEnviou && aberta && (
           <Aviso tipo="ok">
-            Este apartamento já entregou a leitura de {compRotulo(comp)}. Reenviar substitui os
-            valores anteriores.
+            Este apartamento já entregou a leitura de {compRotulo(comp)}. Você ainda pode corrigir
+            números ou trocar fotos até o síndico fechar o mês — toque em <strong>ver</strong> para
+            conferir se cada foto ficou legível.
           </Aviso>
         )}
 
@@ -261,6 +308,7 @@ export default function Leitura() {
               const c = campos[med.id] ?? { m3: '', lt: '' };
               const consumo = consumoDe(med);
               const classe = consumo === null ? '' : consumo < 0 ? ' ruim' : ' feito';
+              const temFoto = !!fotos[med.id] || !!leituras[med.id]?.temFoto;
               return (
                 <div key={med.id} className={`placa${classe}`}>
                   <div className="placa-topo">
@@ -297,16 +345,27 @@ export default function Leitura() {
                     <span className="cons">
                       {consumo === null ? '—' : consumo < 0 ? 'verificar' : `${m3(consumo)} m³`}
                     </span>
-                    <label className={`cam${fotos[med.id] || leituras[med.id]?.temFoto ? ' tem' : ''}`}>
-                      {fotos[med.id] ? 'foto ok' : leituras[med.id]?.temFoto ? 'tem foto' : '+ foto'}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        disabled={!aberta}
-                        style={{ display: 'none' }}
-                        onChange={(e) => escolherFoto(med.id, e.target.files?.[0])}
-                      />
-                    </label>
+                    <span style={{ display: 'flex', gap: 6 }}>
+                      {temFoto && (
+                        <button
+                          className="cam"
+                          type="button"
+                          onClick={() => verFoto(med.id, med.rotulo)}
+                        >
+                          ver
+                        </button>
+                      )}
+                      <label className={`cam${temFoto ? ' tem' : ''}`}>
+                        {trocando === med.id ? 'salvando…' : temFoto ? 'trocar' : '+ foto'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          disabled={!aberta || trocando !== null}
+                          style={{ display: 'none' }}
+                          onChange={(e) => escolherFoto(med.id, e.target.files?.[0])}
+                        />
+                      </label>
+                    </span>
                   </div>
                 </div>
               );
@@ -370,6 +429,30 @@ export default function Leitura() {
               {negativos} medidor(es) com leitura menor que a anterior. Confira se você copiou só os
               dígitos pretos no campo preto — os vermelhos são litros e vão no campo vermelho.
             </Aviso>
+          )}
+
+          {vendo && (
+            <div className="card" style={{ borderColor: 'var(--agua)' }}>
+              <span className="eyebrow">Medidor {vendo.rotulo}</span>
+              <h3 className="disp">Confira se está legível</h3>
+              <img className="det-foto" src={vendo.url} alt={`Hidrômetro ${vendo.rotulo}`} />
+              <div style={{ height: 12 }} />
+              <div className="campos">
+                <label className="btn sec" style={{ textAlign: 'center', cursor: 'pointer' }}>
+                  {trocando === vendo.id ? 'Salvando…' : 'Trocar esta foto'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    disabled={!aberta || trocando !== null}
+                    style={{ display: 'none' }}
+                    onChange={(e) => escolherFoto(vendo.id, e.target.files?.[0])}
+                  />
+                </label>
+                <button className="btn sec" type="button" onClick={() => setVendo(null)}>
+                  Fechar
+                </button>
+              </div>
+            </div>
           )}
 
           <button

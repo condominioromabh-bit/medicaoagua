@@ -11,6 +11,7 @@ import SeletorComp from '@/components/SeletorComp';
 import ConferenciaApto from '@/components/ConferenciaApto';
 import AbaTarifa from '@/components/AbaTarifa';
 import AbaInicial from '@/components/AbaInicial';
+import DiagnosticoPush from '@/components/DiagnosticoPush';
 import {
   estaAberta, garantirCompetencia, listaCompetencias, salvarConta, salvarPrazo,
   type ContaDoc, type Prazo,
@@ -646,6 +647,8 @@ export default function Sindico() {
                 {ocupado ? 'Salvando…' : 'Salvar prazo'}
               </button>
             </div>
+
+            <DiagnosticoPush />
 
             <div className="card">
               <span className="eyebrow">Unidades</span>

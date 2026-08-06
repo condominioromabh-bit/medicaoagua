@@ -143,6 +143,36 @@ export async function salvarLeituras(
   await batch.commit();
 }
 
+/**
+ * Troca a foto de um único medidor, sem mexer nas leituras.
+ *
+ * Serve para quando o morador percebe que a foto saiu tremida ou ilegível:
+ * antes disso, corrigir exigia reenviar o apartamento inteiro. Só funciona com
+ * a competência aberta — as regras do Firestore garantem isso.
+ */
+export async function trocarFoto(
+  comp: string,
+  medidorId: string,
+  unidadeId: string,
+  dataUrl: string,
+) {
+  if (dataUrl.length > LIMITE_FOTO_BYTES) {
+    throw new Error('A foto ficou grande demais. Tire outra com menos detalhe de fundo.');
+  }
+  const batch = writeBatch(getDb());
+  batch.set(doc(condo(), 'competencias', comp, 'fotos', medidorId), {
+    unidadeId,
+    imagem: dataUrl,
+    enviadoEm: new Date().toISOString(),
+  });
+  batch.set(
+    doc(condo(), 'competencias', comp, 'leituras', medidorId),
+    { temFoto: true },
+    { merge: true },
+  );
+  await batch.commit();
+}
+
 /** Busca a foto sob demanda. Nunca vem junto com a lista de leituras. */
 export async function carregarFoto(comp: string, medidorId: string): Promise<string | null> {
   const s = await getDoc(doc(condo(), 'competencias', comp, 'fotos', medidorId));
