@@ -17,12 +17,14 @@ export default function AtivarPush() {
   const { sessao } = useApp();
   const [estado, setEstado] = useState<EstadoPush | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
     estadoPush().then(setEstado);
   }, []);
 
-  if (!estado || estado === 'indisponivel' || !sessao?.unidadeId) return null;
+  if (!estado || estado === 'indisponivel' || !sessao) return null;
+  const alvo = sessao.unidadeId ?? 'sindico';
 
   if (estado === 'ativo') {
     return (
@@ -61,9 +63,13 @@ export default function AtivarPush() {
 
   async function ativar() {
     setOcupado(true);
+    setErro(null);
     try {
-      const r = await ativarPush(condoId(), sessao!.unidadeId!);
+      const r = await ativarPush(condoId(), alvo);
       setEstado(r.estado);
+      if (!r.ok && r.erro) setErro(r.erro);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Falha inesperada ao ativar o lembrete.');
     } finally {
       setOcupado(false);
     }
@@ -77,6 +83,7 @@ export default function AtivarPush() {
         O aviso chega 3 dias antes do vencimento, na véspera e no dia — só se você ainda não tiver
         lançado. Nada além disso.
       </p>
+      {erro && <div className="aviso erro">{erro}</div>}
       <div style={{ height: 12 }} />
       <button className="btn sec" onClick={ativar} disabled={ocupado}>
         {ocupado ? 'Ativando…' : 'Ativar lembrete neste aparelho'}

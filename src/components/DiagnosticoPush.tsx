@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { getAuthClient } from '@/lib/firebase/client';
 import { useApp } from '@/lib/contexto';
 import Aviso from './Aviso';
+import AtivarPush from './AtivarPush';
 import { compRotulo, dataBR, diasAtePrazo, prazoDe } from '@/lib/formato';
 
 interface Resposta {
@@ -121,6 +122,9 @@ export default function DiagnosticoPush() {
       <button className="btn sec" onClick={testar} disabled={ocupado}>
         {ocupado ? 'Enviando…' : 'Enviar notificação de teste agora'}
       </button>
+
+      <div style={{ height: 16 }} />
+      <AtivarPush />
 
       <div style={{ height: 16 }} />
       <p className="sub">
