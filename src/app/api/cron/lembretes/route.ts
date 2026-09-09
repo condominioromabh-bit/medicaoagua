@@ -167,17 +167,45 @@ export async function GET(req: Request) {
     await Promise.all(
       tokens.docs.map(async (t) => {
         const { unidadeId, token } = t.data() as { unidadeId: string; token: string };
-        const faltam = faltamPorUnidade.get(unidadeId);
-        if (!faltam) return;
-        const { title, body } = mensagem(dias, comp.id, faltam);
+
+        // O síndico não é uma unidade: seu token é gravado com 'sindico', que
+        // nunca casa com faltamPorUnidade. Sem este ramo ele jamais receberia o
+        // lembrete automático. Aqui ele recebe o resumo de quem falta.
+        let title: string;
+        let body: string;
+        let link: string;
+        let tag: string;
+
+        if (unidadeId === 'sindico') {
+          const n = faltamPorUnidade.size;
+          const lista = [...faltamPorUnidade.keys()].sort().map((u) => `apto ${u}`).join(', ');
+          title = dias < 0 ? `Leitura de ${comp.id} atrasada` : `Faltam ${n} apartamento(s)`;
+          body =
+            dias < 0
+              ? `Vencido há ${Math.abs(dias)} dia(s). Ainda não lançaram: ${lista}.`
+              : `Prazo em ${dias} dia(s). Ainda não lançaram: ${lista}.`;
+          link = '/sindico';
+          tag = `sindico-${comp.id}`;
+        } else {
+          const faltam = faltamPorUnidade.get(unidadeId);
+          if (!faltam) return;
+          const m = mensagem(dias, comp.id, faltam);
+          title = m.title;
+          body = m.body;
+          link = `/leitura?comp=${comp.id}`;
+          tag = `prazo-${comp.id}`;
+        }
+
         try {
           await getMessaging(adminApp()).send({
             token,
-            notification: { title, body },
-            webpush: {
-              fcmOptions: { link: `/leitura?comp=${comp.id}` },
-              notification: { icon: '/icone-192.png', tag: `prazo-${comp.id}` },
+            data: {
+              titulo: title,
+              corpo: body,
+              link,
+              tag,
             },
+            webpush: { headers: { Urgency: 'high' } },
           });
           enviados += 1;
         } catch (e) {
@@ -205,6 +233,22 @@ export async function GET(req: Request) {
       tokensRemovidos: mortos.length,
     });
   }
+
+  // Grava o resultado no banco para o síndico ver se o cron rodou de verdade.
+  // Sem isso, a única forma de saber era procurar nos logs da Vercel.
+  await condo
+    .collection('execucoes')
+    .doc(new Date().toISOString().slice(0, 10))
+    .set({
+      quando: new Date().toISOString(),
+      retencao,
+      relatorio,
+      totalEnviados: relatorio.reduce(
+        (a, r) => a + (typeof r.enviados === 'number' ? r.enviados : 0),
+        0,
+      ),
+    })
+    .catch(() => {});
 
   return NextResponse.json({ ok: true, retencao, relatorio });
 }

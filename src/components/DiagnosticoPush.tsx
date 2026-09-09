@@ -1,6 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { collection, getDocs, query } from 'firebase/firestore';
+import { condoId, getDb } from '@/lib/firebase/client';
 import { getAuthClient } from '@/lib/firebase/client';
 import { useApp } from '@/lib/contexto';
 import Aviso from './Aviso';
@@ -27,6 +29,27 @@ export default function DiagnosticoPush() {
   const [r, setR] = useState<Resposta | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [execucoes, setExecucoes] = useState<Array<{ dia: string; quando: string; enviados: number }> | null>(null);
+
+  // últimas execuções do cron, para saber se o agendamento está mesmo rodando
+  useEffect(() => {
+    (async () => {
+      try {
+        const snap = await getDocs(query(collection(getDb(), 'condominios', condoId(), 'execucoes')));
+        const lista = snap.docs
+          .map((d) => ({
+            dia: d.id,
+            quando: (d.data().quando as string) ?? '',
+            enviados: (d.data().totalEnviados as number) ?? 0,
+          }))
+          .sort((a, b) => b.dia.localeCompare(a.dia))
+          .slice(0, 5);
+        setExecucoes(lista);
+      } catch {
+        setExecucoes([]);
+      }
+    })();
+  }, []);
 
   if (!base) return null;
 
@@ -125,6 +148,34 @@ export default function DiagnosticoPush() {
 
       <div style={{ height: 16 }} />
       <AtivarPush />
+
+      <div style={{ height: 20 }} />
+      <span className="eyebrow">Execuções do agendamento</span>
+      <div style={{ height: 8 }} />
+      {execucoes === null ? (
+        <p className="sub">Carregando…</p>
+      ) : execucoes.length === 0 ? (
+        <Aviso tipo="erro">
+          <strong>O agendamento nunca rodou.</strong> Confira em Settings → Cron Jobs na Vercel se o
+          job aparece listado. Ele só existe a partir de um deploy que inclua o arquivo
+          vercel.json, e só roda no deploy que estiver marcado como Production.
+        </Aviso>
+      ) : (
+        <div className="rolagem">
+          <table className="tabela">
+            <thead><tr><th>Dia</th><th>Horário</th><th>Notificações enviadas</th></tr></thead>
+            <tbody>
+              {execucoes.map((e) => (
+                <tr key={e.dia}>
+                  <td>{e.dia.split('-').reverse().join('/')}</td>
+                  <td>{e.quando ? new Date(e.quando).toLocaleTimeString('pt-BR') : '—'}</td>
+                  <td>{e.enviados}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div style={{ height: 16 }} />
       <p className="sub">

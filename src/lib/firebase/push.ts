@@ -1,7 +1,7 @@
 'use client';
 
 import { getMessaging, getToken, isSupported, onMessage } from 'firebase/messaging';
-import { doc, setDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { getDb, getFirebaseApp, vapidKey } from './client';
 
 export type EstadoPush =
@@ -86,13 +86,29 @@ export async function ativarPush(
     return { ok: false, estado: 'nao_pedido', erro: 'O Firebase devolveu um token vazio.' };
   }
 
-  // id do documento derivado do token: reativar no mesmo aparelho não duplica
+  const userAgent = navigator.userAgent.slice(0, 200);
   const id = token.slice(-40).replace(/[^a-zA-Z0-9]/g, '');
+
   try {
+    // O mesmo celular gera tokens diferentes no navegador e no app instalado,
+    // e antes cada um recebia uma cópia da notificação. Aqui os registros
+    // antigos do mesmo aparelho são removidos, deixando só o atual.
+    const antigos = await getDocs(
+      query(
+        collection(getDb(), 'condominios', condoId, 'tokens'),
+        where('unidadeId', '==', unidadeId),
+      ),
+    );
+    await Promise.all(
+      antigos.docs
+        .filter((d) => d.id !== id && d.data().userAgent === userAgent)
+        .map((d) => deleteDoc(d.ref)),
+    );
+
     await setDoc(doc(getDb(), 'condominios', condoId, 'tokens', id), {
       token,
       unidadeId,
-      userAgent: navigator.userAgent.slice(0, 200),
+      userAgent,
       atualizadoEm: new Date().toISOString(),
     });
   } catch (e) {
@@ -110,11 +126,27 @@ export async function ativarPush(
   return { ok: true, estado: 'ativo' };
 }
 
-/** Notificação com o app aberto: o SW não dispara, então mostramos na tela. */
-export async function ouvirEmPrimeiroPlano(cb: (t: string, c: string) => void) {
+/**
+ * Notificação com o app aberto.
+ *
+ * O service worker só é acionado com a aba em segundo plano. Com o app na tela,
+ * a mensagem cai aqui — e se ninguém escutar, ela é descartada em silêncio, que
+ * era o que acontecia.
+ */
+export async function ouvirEmPrimeiroPlano(
+  cb: (titulo: string, corpo: string) => void,
+): Promise<(() => void) | undefined> {
+  if (typeof window === 'undefined') return;
   if (!(await isSupported())) return;
-  onMessage(getMessaging(getFirebaseApp()), (payload) => {
-    const n = payload.notification;
-    if (n?.title) cb(n.title, n.body ?? '');
-  });
+  if (Notification.permission !== 'granted') return;
+  try {
+    return onMessage(getMessaging(getFirebaseApp()), (payload) => {
+      const d = payload.data ?? {};
+      const titulo = d.titulo ?? payload.notification?.title;
+      const corpo = d.corpo ?? payload.notification?.body ?? '';
+      if (titulo) cb(titulo, corpo);
+    });
+  } catch {
+    return;
+  }
 }

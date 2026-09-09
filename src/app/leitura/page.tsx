@@ -6,9 +6,11 @@ import { useRouter } from 'next/navigation';
 import { useApp } from '@/lib/contexto';
 import Topo from '@/components/Topo';
 import Aviso from '@/components/Aviso';
+import AvisoEmPrimeiroPlano from '@/components/AvisoEmPrimeiroPlano';
 import Carregando from '@/components/Carregando';
 import SeletorComp from '@/components/SeletorComp';
 import AtivarPush from '@/components/AtivarPush';
+import { ouvirEmPrimeiroPlano } from '@/lib/firebase/push';
 import {
   carregarFoto, comprimirFoto, estaAberta, listaCompetencias, salvarLeituras, trocarFoto,
   type Medidor,
@@ -33,6 +35,15 @@ export default function Leitura() {
     if (!carregando && !sessao) router.replace('/entrar');
     if (!carregando && sessao?.papel === 'sindico') router.replace('/sindico');
   }, [carregando, sessao, router]);
+
+  // com o app aberto o service worker não dispara: mostramos o aviso na tela
+  useEffect(() => {
+    let parar: (() => void) | undefined;
+    ouvirEmPrimeiroPlano((titulo, corpo) => {
+      setMsg({ t: 'ok', texto: `${titulo} — ${corpo}` });
+    }).then((f) => { parar = f; });
+    return () => parar?.();
+  }, []);
 
   const unidadeId = sessao?.unidadeId;
 
@@ -253,6 +264,7 @@ export default function Leitura() {
     <>
       <Topo />
       <div className="wrap">
+        <AvisoEmPrimeiroPlano />
         {msg && <Aviso tipo={msg.t}>{msg.texto}</Aviso>}
 
         {comps.length > 1 && <SeletorComp />}

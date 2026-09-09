@@ -6,12 +6,14 @@ import { getAuthClient } from '@/lib/firebase/client';
 import { useApp } from '@/lib/contexto';
 import Topo from '@/components/Topo';
 import Aviso from '@/components/Aviso';
+import AvisoEmPrimeiroPlano from '@/components/AvisoEmPrimeiroPlano';
 import Carregando from '@/components/Carregando';
 import SeletorComp from '@/components/SeletorComp';
 import ConferenciaApto from '@/components/ConferenciaApto';
 import AbaTarifa from '@/components/AbaTarifa';
 import AbaInicial from '@/components/AbaInicial';
 import DiagnosticoPush from '@/components/DiagnosticoPush';
+import CodigosAcesso from '@/components/CodigosAcesso';
 import {
   estaAberta, garantirCompetencia, listaCompetencias, salvarConta, salvarPrazo,
   type ContaDoc, type Prazo,
@@ -254,6 +256,7 @@ export default function Sindico() {
           ))}
         </div>
 
+        <AvisoEmPrimeiroPlano />
         {msg && <Aviso tipo={msg.t}>{msg.texto}</Aviso>}
 
         {(aba === 'coleta' || aba === 'conta' || aba === 'fechamento') && comps.length > 1 && <SeletorComp />}
@@ -647,6 +650,8 @@ export default function Sindico() {
                 {ocupado ? 'Salvando…' : 'Salvar prazo'}
               </button>
             </div>
+
+            <CodigosAcesso />
 
             <DiagnosticoPush />
 

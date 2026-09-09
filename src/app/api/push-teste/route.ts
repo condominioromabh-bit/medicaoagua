@@ -45,16 +45,17 @@ export async function POST(req: Request) {
     tokens.docs.map(async (t) => {
       const { unidadeId, token } = t.data() as { unidadeId: string; token: string };
       try {
+        // só `data`: com `notification` o navegador exibe junto com o
+        // service worker e a mensagem chega duplicada
         await getMessaging(adminApp()).send({
           token,
-          notification: {
-            title: 'Teste de notificação',
-            body: 'Se você está lendo isto, o lembrete de prazo vai funcionar.',
+          data: {
+            titulo: 'Teste de notificação',
+            corpo: 'Se você está lendo isto, o lembrete de prazo vai funcionar.',
+            link: '/leitura',
+            tag: 'teste',
           },
-          webpush: {
-            fcmOptions: { link: '/leitura' },
-            notification: { icon: '/icone-192.png', tag: 'teste' },
-          },
+          webpush: { headers: { Urgency: 'high' } },
         });
         enviados.push(unidadeId);
       } catch (e) {

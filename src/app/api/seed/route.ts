@@ -26,10 +26,11 @@ const TARIFA_2025 = {
   ],
 };
 
-/** Código de 6 caracteres sem letras ambíguas (O/0, I/1). */
-function gerarCodigo(): string {
-  const alfabeto = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  return Array.from({ length: 6 }, () => alfabeto[randomInt(alfabeto.length)]).join('');
+/** Código no formato Roma_XXX, sem letras que se confundem com números. */
+const LETRAS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+function gerarCodigo(letras = 3): string {
+  const s = Array.from({ length: letras }, () => LETRAS[randomInt(LETRAS.length)]).join('');
+  return `Roma_${s}`;
 }
 
 export async function POST(req: Request) {
@@ -49,7 +50,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const senhaSindico = gerarCodigo();
+  const senhaSindico = gerarCodigo(5);
   const codigos: Record<string, string> = {};
   const lote = adminDb().batch();
 
