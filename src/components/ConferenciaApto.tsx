@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useApp } from '@/lib/contexto';
+import { getAuthClient } from '@/lib/firebase/client';
 import Aviso from './Aviso';
 import { carregarFoto, comprimirFoto, salvarLeituras, trocarFoto } from '@/lib/dados';
 import { alertasDoMedidor, faturar, montarSerie } from '@/lib/calculo';
-import { brl, m3 } from '@/lib/formato';
+import { brl, compRotulo, m3 } from '@/lib/formato';
 
 type Vista = 'tabela' | 'fotos';
 
@@ -33,6 +34,7 @@ export default function ConferenciaApto({
   const [trocando, setTrocando] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  const [limpando, setLimpando] = useState(false);
 
   const medidores = useMemo(
     () => (base ? base.medidores.filter((m) => m.unidadeId === unidadeId) : []),
@@ -115,6 +117,43 @@ export default function ConferenciaApto({
       );
     } finally {
       setTrocando(null);
+    }
+  }
+
+  /** Devolve o apartamento a pendente — usado quando alguém lançou no mês errado. */
+  async function limpar() {
+    const lancados = linhas.filter((l) => leituras[l.med.id]).length;
+    if (!lancados) {
+      setErro('Este apartamento ainda não tem leitura nesta competência.');
+      return;
+    }
+    const texto =
+      `Apagar as ${lancados} leitura(s) e fotos do apto ${unidadeId} em ${compRotulo(comp)}?\n\n` +
+      'Ele volta a constar como pendente e o morador poderá lançar de novo. Isso não pode ser desfeito.';
+    if (!window.confirm(texto)) return;
+
+    setErro(null);
+    setLimpando(true);
+    try {
+      const token = await getAuthClient().currentUser?.getIdToken();
+      const resp = await fetch('/api/limpar-leitura', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ competencia: comp, unidadeId }),
+      });
+      const dados = await resp.json();
+      if (!resp.ok) {
+        setErro(dados.erro ?? 'Não foi possível apagar as leituras.');
+        return;
+      }
+      setEdicao({});
+      setFotos({});
+      await recarregar();
+      onSalvo(dados.aviso);
+    } catch {
+      setErro('Falha de conexão ao apagar as leituras.');
+    } finally {
+      setLimpando(false);
     }
   }
 
@@ -318,6 +357,21 @@ export default function ConferenciaApto({
         <button className="btn" onClick={salvar} disabled={!aberta || ocupado}>
           {!aberta ? 'Mês fechado' : ocupado ? 'Salvando…' : 'Salvar leituras corrigidas'}
         </button>
+
+        {aberta && linhas.some((l) => leituras[l.med.id]) && (
+          <>
+            <div style={{ height: 22 }} />
+            <span className="eyebrow">Lançado no mês errado?</span>
+            <p className="sub" style={{ marginTop: 6 }}>
+              Apagar devolve o apartamento a pendente em {compRotulo(comp)}, e o morador lança de
+              novo na competência certa. As leituras dos outros meses não são afetadas.
+            </p>
+            <div style={{ height: 10 }} />
+            <button className="btn perigo" onClick={limpar} disabled={limpando}>
+              {limpando ? 'Apagando…' : `Apagar a leitura deste apartamento em ${compRotulo(comp)}`}
+            </button>
+          </>
+        )}
 
         {fatura && (
           <>
