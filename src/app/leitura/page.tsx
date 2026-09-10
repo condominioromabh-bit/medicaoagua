@@ -130,10 +130,36 @@ export default function Leitura() {
   }, [completo, total, base]);
 
   function mudarCampo(medId: string, qual: 'm3' | 'lt', valor: string) {
+    // quem lê o mostrador digita a vírgula por reflexo: ela pula para os litros
+    if (qual === 'm3' && /[,.]/.test(valor)) {
+      const [inteiro, decimal] = valor.split(/[,.]/);
+      setCampos((c) => ({
+        ...c,
+        [medId]: {
+          m3: inteiro.replace(/\D/g, ''),
+          lt: (decimal ?? '').replace(/\D/g, '').slice(0, 3) || c[medId]?.lt || '',
+        },
+      }));
+      const alvo = document.getElementById(`lt-${medId}`) as HTMLInputElement | null;
+      alvo?.focus();
+      alvo?.select();
+      return;
+    }
+
     const limpo = valor.replace(/\D/g, '');
     setCampos((c) => ({ ...c, [medId]: { ...c[medId], [qual]: limpo } }));
     if (qual === 'm3' && limpo.length === 5) {
       document.getElementById(`lt-${medId}`)?.focus();
+    }
+  }
+
+  /** Em teclado numérico de celular a vírgula às vezes não chega no onChange. */
+  function teclaCampo(e: React.KeyboardEvent<HTMLInputElement>, medId: string) {
+    if (e.key === ',' || e.key === '.') {
+      e.preventDefault();
+      const alvo = document.getElementById(`lt-${medId}`) as HTMLInputElement | null;
+      alvo?.focus();
+      alvo?.select();
     }
   }
 
@@ -332,12 +358,13 @@ export default function Leitura() {
                       className="m3"
                       type="text"
                       inputMode="numeric"
-                      maxLength={5}
+                      maxLength={6}
                       placeholder="00000"
                       value={c.m3}
                       disabled={!aberta}
                       aria-label={`Metros cúbicos do medidor ${med.rotulo}`}
                       onChange={(e) => mudarCampo(med.id, 'm3', e.target.value)}
+                      onKeyDown={(e) => teclaCampo(e, med.id)}
                     />
                     <span className="pt">,</span>
                     <input
