@@ -74,9 +74,10 @@ export default function DiagnosticoPush() {
     setOcupado(true);
     try {
       const token = await getAuthClient().currentUser?.getIdToken();
-      const resp = await fetch('/api/push-teste', {
+      const resp = await fetch('/api/notificar', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ alvo: 'todos', competencia: comp }),
       });
       const dados = await resp.json();
       if (!resp.ok) {
@@ -143,7 +144,7 @@ export default function DiagnosticoPush() {
 
       <div style={{ height: 12 }} />
       <button className="btn sec" onClick={testar} disabled={ocupado}>
-        {ocupado ? 'Enviando…' : 'Enviar notificação de teste agora'}
+        {ocupado ? 'Enviando…' : 'Enviar notificação agora (todos)'}
       </button>
 
       <div style={{ height: 16 }} />

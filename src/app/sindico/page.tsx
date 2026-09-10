@@ -14,6 +14,7 @@ import AbaTarifa from '@/components/AbaTarifa';
 import AbaInicial from '@/components/AbaInicial';
 import DiagnosticoPush from '@/components/DiagnosticoPush';
 import CodigosAcesso from '@/components/CodigosAcesso';
+import NotificarMoradores from '@/components/NotificarMoradores';
 import {
   estaAberta, garantirCompetencia, listaCompetencias, salvarConta, salvarPrazo,
   type ContaDoc, type Prazo,
@@ -303,6 +304,8 @@ export default function Sindico() {
                 <div style={{ height: 14 }} />
               </>
             )}
+
+            <NotificarMoradores />
 
             <div className="lista">
               {resultado.itens.map((item) => {

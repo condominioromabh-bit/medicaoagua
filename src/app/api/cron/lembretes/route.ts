@@ -43,25 +43,38 @@ function deveAvisar(dias: number): boolean {
   return false;
 }
 
-function mensagem(dias: number, competencia: string, faltam: number) {
-  const [ano, mes] = competencia.split('-');
-  const rot = `${mes}/${ano}`;
+const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+function rotulo(comp: string) {
+  const [a, m] = comp.split('-').map(Number);
+  return `${MESES[m - 1].toUpperCase()}/${a}`;
+}
+
+/**
+ * O corpo nomeia o apartamento de quem recebe. Numa tela de bloqueio cheia de
+ * avisos, "Realizar a leitura da água do apto 302" é reconhecido de relance;
+ * um texto genérico passa despercebido.
+ */
+function mensagem(dias: number, competencia: string, faltam: number, unidadeId: string) {
+  const rot = rotulo(competencia);
   const plural = faltam > 1 ? 's' : '';
+  const titulo = `Leitura da água — ${rot}`;
+  const quem = unidadeId === 'sindico' ? '' : ` do apto ${unidadeId}`;
+
   if (dias > 0) {
     return {
-      title: `Leitura de ${rot}`,
-      body: `Faltam ${dias} dia${dias > 1 ? 's' : ''} para o prazo. Você ainda tem ${faltam} hidrômetro${plural} para lançar.`,
+      title: titulo,
+      body: `Realizar a leitura da água${quem} — faltam ${faltam} hidrômetro${plural} e ${dias} dia${dias > 1 ? 's' : ''} para o prazo.`,
     };
   }
   if (dias === 0) {
     return {
-      title: 'Hoje é o último dia',
-      body: `A leitura de ${rot} vence hoje. Faltam ${faltam} hidrômetro${plural}.`,
+      title: titulo,
+      body: `Realizar a leitura da água${quem} — hoje é o último dia do prazo. Faltam ${faltam} hidrômetro${plural}.`,
     };
   }
   return {
-    title: `Leitura de ${rot} atrasada`,
-    body: `O prazo venceu há ${Math.abs(dias)} dias. Sem a sua leitura, o consumo do seu apartamento é estimado pela média.`,
+    title: titulo,
+    body: `Realizar a leitura da água${quem} — prazo vencido há ${Math.abs(dias)} dias. Sem a leitura, o consumo é estimado pela média.`,
   };
 }
 
@@ -189,7 +202,7 @@ export async function GET(req: Request) {
         } else {
           const faltam = faltamPorUnidade.get(unidadeId);
           if (!faltam) return;
-          const m = mensagem(dias, comp.id, faltam);
+          const m = mensagem(dias, comp.id, faltam, unidadeId);
           title = m.title;
           body = m.body;
           link = `/leitura?comp=${comp.id}`;
